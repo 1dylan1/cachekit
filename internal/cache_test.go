@@ -1,9 +1,10 @@
 package cache
 
 import (
-	cache "cachekit/pkg"
 	"testing"
 	"time"
+
+	cache "github.com/1dylan1/cachekit/pkg"
 )
 
 func TestNewCache(t *testing.T) {
