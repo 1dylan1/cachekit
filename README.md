@@ -54,7 +54,7 @@ cache.Flush()
 ## Sharded Cache Usage
 
 The sharded cache system provides better performance for high-concurrency scenarios
-by distributing cahce entries across multiple shards. The sharded cache provides the same API as the regular, non-sharded single cache.
+by distributing cache entries across multiple shards. The sharded cache provides the same API as the regular, non-sharded single cache.
 
 ```go
 import (
