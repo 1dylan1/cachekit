@@ -1,9 +1,10 @@
 package examples
 
 import (
-	"cachekit"
 	"fmt"
 	"time"
+
+	"github.com/1dylan1/cachekit"
 )
 
 func ShardCacheExample() {

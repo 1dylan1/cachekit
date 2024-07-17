@@ -1,9 +1,10 @@
-package cache
+package cachekit
 
 import (
-	"cachekit"
 	"testing"
 	"time"
+
+	"github.com/1dylan1/cachekit"
 )
 
 func TestNewCache(t *testing.T) {
