@@ -2,9 +2,19 @@ package cachekit
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 )
+
+// Util function for the eviction strategy, removes a value by string from the slice and returns the new modified slice.
+func removeByValue(s []string, value string) []string {
+	index := slices.Index(s, value)
+	if index != -1 {
+		return append(s[:index], s[index+1:]...)
+	}
+	return s
+}
 
 const (
 	DefaultExpirationTime time.Duration = 0
@@ -17,19 +27,23 @@ type Entry struct {
 }
 
 type cache struct {
-	expirationTime time.Duration
-	cleanupTime    time.Duration
-	entries        map[string]Entry
-	mutex          sync.RWMutex
+	expirationTime  time.Duration
+	cleanupTime     time.Duration
+	nextCleanupTime int64
+	expiringKeys    []string
+	entries         map[string]Entry
+	mutex           sync.RWMutex
 }
 
 func New(expirationTime time.Duration, cleanupTime time.Duration) *cache {
 	entries := make(map[string]Entry)
 	cache := &cache{
-		expirationTime: expirationTime,
-		cleanupTime:    cleanupTime,
-		entries:        entries,
-		mutex:          sync.RWMutex{},
+		expirationTime:  expirationTime,
+		cleanupTime:     cleanupTime,
+		nextCleanupTime: time.Now().Add(cleanupTime).Unix(),
+		expiringKeys:    []string{},
+		entries:         entries,
+		mutex:           sync.RWMutex{},
 	}
 
 	if cleanupTime != 0 && cleanupTime != NoExpirationTime {
@@ -43,18 +57,31 @@ func (cache *cache) cleanUpCache() {
 	ticket := time.NewTicker(cache.cleanupTime)
 	for range ticket.C {
 		cache.removeExpiredEntries()
+		cache.nextCleanupTime = time.Now().Add(cache.cleanupTime).Unix()
 	}
 }
 
 func (cache *cache) removeExpiredEntries() {
 	cache.mutex.Lock()
 	defer cache.mutex.Unlock()
+
 	currentTimestamp := time.Now().Unix()
-	for key, entry := range cache.entries {
+	var remainingKeys []string
+
+	for _, key := range cache.expiringKeys {
+		entry, exists := cache.entries[key]
+		if !exists {
+			continue
+		}
+
 		if entry.ExpirationTimestamp < currentTimestamp && entry.ExpirationTimestamp != int64(NoExpirationTime) {
 			delete(cache.entries, key)
+		} else {
+			remainingKeys = append(remainingKeys, key)
 		}
 	}
+
+	cache.expiringKeys = remainingKeys
 }
 
 /*
@@ -108,6 +135,10 @@ func (cache *cache) Add(key string, content interface{}, expirationTime time.Dur
 		expiration = time.Now().Add(cache.expirationTime).Unix()
 	}
 
+	if expiration <= cache.nextCleanupTime {
+		cache.expiringKeys = append(cache.expiringKeys, key)
+	}
+
 	entry := Entry{
 		Content:             content,
 		ExpirationTimestamp: expiration,
@@ -130,6 +161,14 @@ func (cache *cache) Set(key string, content interface{}, expirationTime time.Dur
 		expiration = time.Now().Add(cache.expirationTime).Unix()
 	}
 
+	if slices.Contains(cache.expiringKeys, key) {
+		cache.expiringKeys = removeByValue(cache.expiringKeys, key)
+	}
+
+	if expiration <= cache.nextCleanupTime {
+		cache.expiringKeys = append(cache.expiringKeys, key)
+	}
+
 	entry := Entry{
 		Content:             content,
 		ExpirationTimestamp: expiration,
@@ -148,6 +187,10 @@ func (cache *cache) Delete(key string) error {
 		return fmt.Errorf("[cachekit] could not find key %s in cache", key)
 	}
 
+	if slices.Contains(cache.expiringKeys, key) {
+		cache.expiringKeys = removeByValue(cache.expiringKeys, key)
+	}
+
 	delete(cache.entries, key)
 
 	return nil
@@ -161,6 +204,7 @@ func (cache *cache) Flush() {
 	defer cache.mutex.Unlock()
 
 	cache.entries = make(map[string]Entry)
+	cache.expiringKeys = []string{}
 }
 
 /*
