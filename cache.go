@@ -11,21 +11,21 @@ const (
 	NoExpirationTime      time.Duration = -1
 )
 
-type Entry struct {
+type entry struct {
 	Content             interface{}
 	ExpirationTimestamp int64
 }
 
-type cache struct {
+type Cache struct {
 	expirationTime time.Duration
 	cleanupTime    time.Duration
-	entries        map[string]Entry
+	entries        map[string]entry
 	mutex          sync.RWMutex
 }
 
-func New(expirationTime time.Duration, cleanupTime time.Duration) *cache {
-	entries := make(map[string]Entry)
-	cache := &cache{
+func New(expirationTime time.Duration, cleanupTime time.Duration) *Cache {
+	entries := make(map[string]entry)
+	Cache := &Cache{
 		expirationTime: expirationTime,
 		cleanupTime:    cleanupTime,
 		entries:        entries,
@@ -33,39 +33,39 @@ func New(expirationTime time.Duration, cleanupTime time.Duration) *cache {
 	}
 
 	if cleanupTime != 0 && cleanupTime != NoExpirationTime {
-		go cache.cleanUpCache()
+		go Cache.cleanUpCache()
 	}
 
-	return cache
+	return Cache
 }
 
-func (cache *cache) cleanUpCache() {
-	ticket := time.NewTicker(cache.cleanupTime)
+func (Cache *Cache) cleanUpCache() {
+	ticket := time.NewTicker(Cache.cleanupTime)
 	for range ticket.C {
-		cache.removeExpiredEntries()
+		Cache.removeExpiredEntries()
 	}
 }
 
-func (cache *cache) removeExpiredEntries() {
-	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
+func (Cache *Cache) removeExpiredEntries() {
+	Cache.mutex.Lock()
+	defer Cache.mutex.Unlock()
 	currentTimestamp := time.Now().Unix()
-	for key, entry := range cache.entries {
+	for key, entry := range Cache.entries {
 		if entry.ExpirationTimestamp < currentTimestamp && entry.ExpirationTimestamp != int64(NoExpirationTime) {
-			delete(cache.entries, key)
+			delete(Cache.entries, key)
 		}
 	}
 }
 
 /*
-Returns the entry from the cache from given key, and a bool if it was found or not.
+Returns the entry from the Cache from given key, and a bool if it was found or not.
 If the key has no object associated with it, or wasn't found, returns nil.
 */
-func (cache *cache) Get(key string) (interface{}, bool) {
-	cache.mutex.RLock()
-	defer cache.mutex.RUnlock()
+func (Cache *Cache) Get(key string) (interface{}, bool) {
+	Cache.mutex.RLock()
+	defer Cache.mutex.RUnlock()
 
-	entry, found := cache.entries[key]
+	entry, found := Cache.entries[key]
 
 	if !found {
 		return nil, false
@@ -75,14 +75,14 @@ func (cache *cache) Get(key string) (interface{}, bool) {
 }
 
 /*
-Returns the entry from the cache with given key, the time of the expiration, and bool if it was found or not.
+Returns the entry from the Cache with given key, the time of the expiration, and bool if it was found or not.
 If the key has no object associated with it, or wasn't found, returns nil.
 */
-func (cache *cache) GetWithExpiration(key string) (interface{}, time.Time, bool) {
-	cache.mutex.RLock()
-	defer cache.mutex.RUnlock()
+func (Cache *Cache) GetWithExpiration(key string) (interface{}, time.Time, bool) {
+	Cache.mutex.RLock()
+	defer Cache.mutex.RUnlock()
 
-	entry, found := cache.entries[key]
+	entry, found := Cache.entries[key]
 
 	if !found {
 		return nil, time.Time{}, false
@@ -92,82 +92,82 @@ func (cache *cache) GetWithExpiration(key string) (interface{}, time.Time, bool)
 }
 
 /*
-Tries to add a key/entry into the cache.
-If the cache already has that key it will throw an error. If you'd like to add (or "update") a value even if its key exists, use the Set method
+Tries to add a key/entry into the Cache.
+If the Cache already has that key it will throw an error. If you'd like to add (or "update") a value even if its key exists, use the Set method
 */
-func (cache *cache) Add(key string, content interface{}, expirationTime time.Duration) error {
-	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
-	_, found := cache.entries[key]
+func (Cache *Cache) Add(key string, content interface{}, expirationTime time.Duration) error {
+	Cache.mutex.Lock()
+	defer Cache.mutex.Unlock()
+	_, found := Cache.entries[key]
 	if found {
-		return fmt.Errorf("[cachekit] Entry %s already exists in cache", key)
+		return fmt.Errorf("[Cachekit] entry %s already exists in Cache", key)
 	}
 	expiration := time.Now().Add(expirationTime).Unix()
 
 	if expirationTime == DefaultExpirationTime {
-		expiration = time.Now().Add(cache.expirationTime).Unix()
+		expiration = time.Now().Add(Cache.expirationTime).Unix()
 	}
 
-	entry := Entry{
+	entry := entry{
 		Content:             content,
 		ExpirationTimestamp: expiration,
 	}
 
-	cache.entries[key] = entry
+	Cache.entries[key] = entry
 	return nil
 }
 
 /*
-Adds or updates a key/entry to the cache, ignoring if the key already exists or not.
+Adds or updates a key/entry to the Cache, ignoring if the key already exists or not.
 */
-func (cache *cache) Set(key string, content interface{}, expirationTime time.Duration) {
-	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
+func (Cache *Cache) Set(key string, content interface{}, expirationTime time.Duration) {
+	Cache.mutex.Lock()
+	defer Cache.mutex.Unlock()
 
 	expiration := time.Now().Add(expirationTime).Unix()
 
 	if expirationTime == DefaultExpirationTime {
-		expiration = time.Now().Add(cache.expirationTime).Unix()
+		expiration = time.Now().Add(Cache.expirationTime).Unix()
 	}
 
-	entry := Entry{
+	entry := entry{
 		Content:             content,
 		ExpirationTimestamp: expiration,
 	}
 
-	cache.entries[key] = entry
+	Cache.entries[key] = entry
 }
 
-func (cache *cache) Delete(key string) error {
-	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
+func (Cache *Cache) Delete(key string) error {
+	Cache.mutex.Lock()
+	defer Cache.mutex.Unlock()
 
-	_, found := cache.entries[key]
+	_, found := Cache.entries[key]
 
 	if !found {
-		return fmt.Errorf("[cachekit] could not find key %s in cache", key)
+		return fmt.Errorf("[Cachekit] could not find key %s in Cache", key)
 	}
 
-	delete(cache.entries, key)
+	delete(Cache.entries, key)
 
 	return nil
 }
 
 /*
-Cleans the cache of all entries
+Cleans the Cache of all entries
 */
-func (cache *cache) Flush() {
-	cache.mutex.Lock()
-	defer cache.mutex.Unlock()
+func (Cache *Cache) Flush() {
+	Cache.mutex.Lock()
+	defer Cache.mutex.Unlock()
 
-	cache.entries = make(map[string]Entry)
+	Cache.entries = make(map[string]entry)
 }
 
 /*
-Returns the number of entries in the cache.
+Returns the number of entries in the Cache.
 */
-func (cache *cache) Length() int {
-	cache.mutex.RLock()
-	defer cache.mutex.RUnlock()
-	return len(cache.entries)
+func (Cache *Cache) Length() int {
+	Cache.mutex.RLock()
+	defer Cache.mutex.RUnlock()
+	return len(Cache.entries)
 }

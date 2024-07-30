@@ -6,12 +6,12 @@ import (
 )
 
 type ShardedCache struct {
-	shards     []*cache
+	shards     []*Cache
 	shardCount int
 }
 
 func NewShardedCache(shardCount int, expirationTime time.Duration, cleanupTime time.Duration) *ShardedCache {
-	shards := make([]*cache, shardCount)
+	shards := make([]*Cache, shardCount)
 	for i := 0; i < shardCount; i++ {
 		shards[i] = New(expirationTime, cleanupTime)
 	}
@@ -21,7 +21,7 @@ func NewShardedCache(shardCount int, expirationTime time.Duration, cleanupTime t
 	}
 }
 
-func (shardedCache *ShardedCache) getShard(key string) *cache {
+func (shardedCache *ShardedCache) getShard(key string) *Cache {
 	hash := fnv.New32()
 	hash.Write([]byte(key))
 	shardIndex := hash.Sum32() % uint32(shardedCache.shardCount)
