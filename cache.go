@@ -55,6 +55,7 @@ func New(expirationTime time.Duration, cleanupTime time.Duration) *Cache {
 
 func (Cache *Cache) cleanUpCache() {
 	ticket := time.NewTicker(Cache.cleanupTime)
+
 	for range ticket.C {
 		Cache.removeExpiredEntries()
 	}
@@ -72,14 +73,12 @@ func (Cache *Cache) removeExpiredEntries() {
 		if !exists {
 			continue
 		}
-
-		if entry.ExpirationTimestamp < currentTimestamp && entry.ExpirationTimestamp != int64(NoExpirationTime) {
+		if entry.ExpirationTimestamp <= currentTimestamp && entry.ExpirationTimestamp != int64(NoExpirationTime) {
 			delete(Cache.entries, key)
 		} else {
 			remainingKeys = append(remainingKeys, key)
 		}
 	}
-
 	Cache.expiringKeys = remainingKeys
 }
 
@@ -134,7 +133,7 @@ func (Cache *Cache) Add(key string, content interface{}, expirationTime time.Dur
 		expiration = time.Now().Add(Cache.expirationTime).Unix()
 	}
 
-	if expiration <= Cache.nextCleanupTime {
+	if expiration <= Cache.nextCleanupTime+int64(Cache.expirationTime) && expirationTime != NoExpirationTime {
 		Cache.expiringKeys = append(Cache.expiringKeys, key)
 	}
 
@@ -164,7 +163,7 @@ func (Cache *Cache) Set(key string, content interface{}, expirationTime time.Dur
 		Cache.expiringKeys = removeByValue(Cache.expiringKeys, key)
 	}
 
-	if expiration <= Cache.nextCleanupTime {
+	if expiration <= Cache.nextCleanupTime+int64(expirationTime) && expirationTime != NoExpirationTime {
 		Cache.expiringKeys = append(Cache.expiringKeys, key)
 	}
 

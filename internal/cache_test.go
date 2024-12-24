@@ -47,7 +47,6 @@ func TestNewCache(t *testing.T) {
 		t.Error("Found entry that shouldnt exist")
 	}
 }
-
 func TestCacheTimeDurations(t *testing.T) {
 
 	testCache := cachekit.New(time.Millisecond*1, time.Millisecond*5)
@@ -60,6 +59,39 @@ func TestCacheTimeDurations(t *testing.T) {
 	_, found := testCache.Get("a")
 	if found {
 		t.Error("Found a when it should have been cleaned up")
+	}
+}
+
+func TestCleanupBehavior(t *testing.T) {
+	cache := cachekit.New(time.Second*10, time.Second)
+
+	cache.Set("a", 1, time.Second*2)
+	cache.Set("b", 2, time.Second*4)
+	cache.Set("c", 3, cachekit.NoExpirationTime)
+
+	if _, found := cache.Get("a"); !found {
+		t.Error("Item 'a' should exist initially")
+	}
+	if _, found := cache.Get("b"); !found {
+		t.Error("Item 'b' should exist initially")
+	}
+
+	time.Sleep(time.Second * 3)
+
+	if _, found := cache.Get("a"); found {
+		t.Error("Item 'a' should have expired")
+	}
+	if _, found := cache.Get("b"); !found {
+		t.Error("Item 'b' should still exist")
+	}
+
+	time.Sleep(time.Second * 2)
+
+	if _, found := cache.Get("b"); found {
+		t.Error("Item 'b' should have expired")
+	}
+	if _, found := cache.Get("c"); !found {
+		t.Error("Item 'c' should never expire")
 	}
 }
 
